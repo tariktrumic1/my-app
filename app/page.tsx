@@ -10,7 +10,7 @@ export default function Home() {
     <main className="mx-auto max-w-2xl p-6 space-y-6">
       <Herotemp
         title="My First Next.js App 🚀"
-        subtitle="Now I’m learning state and click events."
+        subtitle="Deployed on Vercel"
       />
 
       <div className="rounded-2xl border p-6">
