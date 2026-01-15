@@ -9,25 +9,34 @@ type Todo = {
   done: boolean;
 };
 
+type Filter = "all" | "active" | "done";
+
 export default function Home() {
   const [text, setText] = useState("");
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [filter, setFilter] = useState<Filter>("all");
 
-  // Load from localStorage once
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  // Load once
   useEffect(() => {
     const saved = localStorage.getItem("todos");
     if (saved) setTodos(JSON.parse(saved));
   }, []);
 
-  // Save whenever todos changes
+  // Save on change
   useEffect(() => {
     localStorage.setItem("todos", JSON.stringify(todos));
   }, [todos]);
 
-  const remaining = useMemo(
-    () => todos.filter((t) => !t.done).length,
-    [todos]
-  );
+  const remaining = useMemo(() => todos.filter((t) => !t.done).length, [todos]);
+
+  const visibleTodos = useMemo(() => {
+    if (filter === "active") return todos.filter((t) => !t.done);
+    if (filter === "done") return todos.filter((t) => t.done);
+    return todos;
+  }, [todos, filter]);
 
   function addTodo(e: React.FormEvent) {
     e.preventDefault();
@@ -55,6 +64,23 @@ export default function Home() {
     setTodos((prev) => prev.filter((t) => !t.done));
   }
 
+  function startEdit(t: Todo) {
+    setEditingId(t.id);
+    setEditText(t.text);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditText("");
+  }
+
+  function saveEdit(id: string) {
+    const clean = editText.trim();
+    if (!clean) return; // keep it simple: don't allow empty
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, text: clean } : t)));
+    cancelEdit();
+  }
+
   return (
     <main className="mx-auto max-w-2xl p-6 space-y-6">
       <Herotemp
@@ -75,48 +101,129 @@ export default function Home() {
           </button>
         </form>
 
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>{todos.length} total</span>
-          <button className="underline hover:opacity-80" onClick={clearDone}>
-            Clear done
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            <Tab label="All" active={filter === "all"} onClick={() => setFilter("all")} />
+            <Tab
+              label="Active"
+              active={filter === "active"}
+              onClick={() => setFilter("active")}
+            />
+            <Tab label="Done" active={filter === "done"} onClick={() => setFilter("done")} />
+          </div>
+
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <span>{todos.length} total</span>
+            <button className="underline hover:opacity-80" onClick={clearDone}>
+              Clear done
+            </button>
+          </div>
         </div>
 
         <ul className="space-y-2">
-          {todos.map((t) => (
+          {visibleTodos.map((t) => (
             <li
               key={t.id}
-              className="flex items-center justify-between rounded-xl border px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
             >
-              <button
-                className="flex items-center gap-3 text-left"
-                onClick={() => toggleTodo(t.id)}
-              >
-                <span
-                  className={[
-                    "h-5 w-5 rounded border",
-                    t.done ? "bg-black" : "bg-white",
-                  ].join(" ")}
+              {/* Left side */}
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <button
+                  className="h-5 w-5 shrink-0 rounded border"
+                  aria-label="Toggle done"
+                  onClick={() => toggleTodo(t.id)}
+                  style={{ background: t.done ? "black" : "white" }}
                 />
-                <span className={t.done ? "line-through text-gray-500" : ""}>
-                  {t.text}
-                </span>
-              </button>
 
-              <button
-                className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50"
-                onClick={() => deleteTodo(t.id)}
-              >
-                Delete
-              </button>
+                {editingId === t.id ? (
+                  <input
+                    className="w-full rounded-lg border px-3 py-2 outline-none"
+                    value={editText}
+                    autoFocus
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit(t.id);
+                      if (e.key === "Escape") cancelEdit();
+                    }}
+                  />
+                ) : (
+                  <button
+                    className="min-w-0 text-left"
+                    onClick={() => toggleTodo(t.id)}
+                    onDoubleClick={() => startEdit(t)}
+                    title="Double-click to edit"
+                  >
+                    <span className={t.done ? "line-through text-gray-500" : ""}>
+                      {t.text}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Right side */}
+              <div className="flex shrink-0 gap-2">
+                {editingId === t.id ? (
+                  <>
+                    <button
+                      className="rounded-lg bg-black px-3 py-1 text-sm text-white hover:opacity-90"
+                      onClick={() => saveEdit(t.id)}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50"
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50"
+                      onClick={() => startEdit(t)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50"
+                      onClick={() => deleteTodo(t.id)}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
             </li>
           ))}
 
-          {todos.length === 0 && (
-            <li className="text-gray-600">No todos yet. Add your first one.</li>
+          {visibleTodos.length === 0 && (
+            <li className="text-gray-600">Nothing here for this filter.</li>
           )}
         </ul>
       </section>
     </main>
+  );
+}
+
+function Tab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "rounded-xl border px-3 py-1 text-sm",
+        active ? "bg-black text-white" : "hover:bg-gray-50",
+      ].join(" ")}
+    >
+      {label}
+    </button>
   );
 }
